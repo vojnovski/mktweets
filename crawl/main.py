@@ -83,7 +83,9 @@ def svrti(korisnik, iteracija, db):
 
 start_time = time.time()
 print sys.stdout.encoding
-api = twitter.Api(consumer_key='Sc8htRKtWs1zKCcpHIXvw', consumer_secret='sZLGiKIdc5I7xBh7LpKnmB0gmnBA3wpFQBGIbX5AvnU', access_token_key='15336494-1ObfV6O89yEGBP3TNdZpEOw76JftinwcRTKzuW623', access_token_secret='GNFVGu0eyKAFfWzqo4nTE9cuUMmEWfACEjCtzGpo')
+file = open("twitterkey")
+keys = file.readline().split()
+api = twitter.Api(consumer_key=keys[0], consumer_secret=keys[1], access_token_key=keys[2], access_token_secret=keys[3])
 broj_na_iteracii = 2
 projdeni = set([])
 client = pymongo.MongoClient("localhost", 27017)
