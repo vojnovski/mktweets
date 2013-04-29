@@ -11,13 +11,15 @@ import time
 import nltk
 import twitter
 import pickle
-import guess_language
+from guess_language import guess_language
 import sys, codecs, locale
 import pymongo
 import json
 
+broj_na_iteracii = 2
+projdeni = set([])
 
-def getStatusiRateLimited(korisnik, maxid=-1):
+def getStatusiRateLimited(korisnik, api, maxid=-1):
     time_between_retries = 5
     while True:
         try:
@@ -36,20 +38,29 @@ def getStatusiRateLimited(korisnik, maxid=-1):
 def getMinid(statusi):
     return min([p.id for p in statusi])
 
-def getSiteStatusi(korisnik, site=True):
-    statusi = getStatusiRateLimited(korisnik)
+def langPercentage(statusi, language='mk'):
+    n = 0
+    for status in statusi:
+        if guess_language(unicode(status.text)) == language:            
+            n=n+1
+    return n/float(len(statusi))
+
+def getSiteStatusi(korisnik, api, site=True):
+    statusi = getStatusiRateLimited(korisnik, api)
+    if langPercentage(statusi) < 0.1:
+        return [], False
     print "Vkupno: " + str(len(statusi)) + " statusi od @" + korisnik + ": " + statusi[-1].text.encode('ascii', 'ignore')
     if not site:
-        return statusi
+        return statusi, True
     while True:
-        newstatusi = getStatusiRateLimited(korisnik, getMinid(statusi)-1)
+        newstatusi = getStatusiRateLimited(korisnik, api, getMinid(statusi)-1)
         if newstatusi != []:
             statusi += newstatusi
             print "Vkupno: " + str(len(statusi)) + "; Uste statusi od @" + korisnik + ": " + statusi[-1].text.encode('ascii', 'ignore')
         else:
-            return statusi
+            return statusi, True
 
-def getFriendsRateLimited(korisnik):
+def getFriendsRateLimited(korisnik, api):
     time_between_retries = 5
     while True:
         try:
@@ -69,44 +80,38 @@ def snimi(statuses, db):
         except:
             pass
 
-def svrti(korisnik, iteracija, db):
+def svrti(korisnik, iteracija, db, api, tree):
     if korisnik not in projdeni:
-        if not iteracija + 1 == broj_na_iteracii:
-            for friend in getFriendsRateLimited(korisnik):
-                    print "Nivo " + str(iteracija) + ": " + korisnik + ": " + friend.screen_name
-                    svrti(friend.screen_name, iteracija+1, db)
-        statuses = getSiteStatusi(korisnik, True)
+        statuses, mk = getSiteStatusi(korisnik, api,  True)
         snimi(statuses, db)
         projdeni.add(korisnik)
+        if mk and not iteracija + 1 == broj_na_iteracii:
+            for friend in getFriendsRateLimited(korisnik, api):
+                    print "Nivo " + str(iteracija) + ": " + tree + "->" + friend.screen_name
+                    svrti(friend.screen_name, iteracija+1, db, api, tree + "->" + friend.screen_name )
     else:
         print "Vekje projden: " + korisnik
 
-def main():
-    start_time = time.time()
+def test():
+    api = prepareApi()
+    
+def prepareApi():
     try:
-        file = open("twitterkey")
+        fajl = open("twitterkey")
     except IOError:
         print >> sys.stderr, 'Error, Can not open file twitterkey containing the twitter api access keys'
         return
-    keys = file.readline().split()
-    api = twitter.Api(consumer_key=keys[0], consumer_secret=keys[1], access_token_key=keys[2], access_token_secret=keys[3])
-    broj_na_iteracii = 2
-    projdeni = set([])
+    keys = fajl.readline().split()
+    return twitter.Api(consumer_key=keys[0], consumer_secret=keys[1], access_token_key=keys[2], access_token_secret=keys[3])
+
+def main():
+    start_time = time.time()
+    api = prepareApi()
     client = pymongo.MongoClient("localhost", 27017)
     db = client.tweets
     db.tweets.ensure_index('id', unique = True, dropDups = True)
-    tvitovi = svrti("vojnovski", 0, db)
-    #print len(tvitovi)
-    #print [s.text for s in tvitovi]
-    #pass
-
-    #print guess_language(unicode("@jovanatozija Незнам зашо неќе да работи срањево"))
-    #print guess_language(unicode("hairy fucker"))
-    #print [guess_language(unicode(s.text)) for s in statuses]
-    #sentence = """At eight o'clock on Thursday morning Arthur didn't feel very good."""
-    #tokens = nltk.word_tokenize(sentence)
-    #tagged = nltk.pos_tag(tokens)
-    #print tagged[0:6]
-
+    tvitovi = svrti("vojnovski", 0, db, api, "vojnovski")
+    print "Time of execution: ", time.time() - start_time, "seconds"
+    
 if __name__ == '__main__':
     main()
