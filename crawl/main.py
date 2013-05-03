@@ -97,7 +97,7 @@ def snimi(statuses, db):
         try:
             db.tweets.save(json.loads(status.AsJsonString()), check_keys=False)
         except:
-            pass
+            return
 
 def svrti(korisnik, iteracija, db, api, tree):
     if korisnik not in projdeni:
