@@ -43,6 +43,8 @@ def langPercentage(statusi, language='mk'):
     for status in statusi:
         if guess_language(unicode(status.text)) == language:            
             n=n+1
+    if len(statusi) == 0:
+        return 0
     return n/float(len(statusi))
 
 def getSiteStatusi(korisnik, api, site=True):
