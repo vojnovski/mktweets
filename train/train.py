@@ -28,10 +28,6 @@ from sklearn.neighbors import NearestCentroid
 from sklearn.utils.extmath import density
 
 
-def size_mb(docs):
-    return sum(len(s.encode('utf-8')) for s in docs) / 1e6
-
-
 def load_tweets():
     """Load and return the tweets from the DB
 
@@ -65,13 +61,11 @@ def load_tweets():
     y_train = labels[:train_instances]
     y_test = labels[train_instances:]
 
-    data_train_size_mb = size_mb(data_train)
-    data_test_size_mb = size_mb(data_test)
-    print("%d documents - %0.3fMB (training set)" % (len(data_train), data_train_size_mb))
-    print("%d documents - %0.3fMB (training set)" % (len(data_test), data_test_size_mb))
+    print("%d documents (training set)" % len(data_train))
+    print("%d documents (test set)" % len(data_test))
     print("2 categories: [Male, Female]")
     print('Data loaded')
-    print()
+    print ""
 
     return data_train, data_test, y_train, y_test
 
@@ -84,9 +78,11 @@ def vectorize_tweets(data_train):
     #preprocess_descriptions = lambda x: x[2]
     #preprocess_names = lambda x: x[3]
     tweets_char_vect = TfidfVectorizer(preprocessor=preprocess_tweets, analyzer='char',
-                                       ngram_range=(1, 5), strip_accents=None, charset_error='strict')
+                                       ngram_range=(1, 5), strip_accents=None, charset_error='strict',
+                                       sublinear_tf=True, max_df=0.5)
     tweets_word_vect = TfidfVectorizer(preprocessor=preprocess_tweets, analyzer='word',
-                                       ngram_range=(1, 2), strip_accents=None, charset_error='strict')
+                                       ngram_range=(1, 2), strip_accents=None, charset_error='strict',
+                                       sublinear_tf=True, max_df=0.5)
     #names_char_vect = TfidfVectorizer(preprocessor=preprocess_names, analyzer='char',
     #                                  ngram_range=(1, 5), strip_accents=None, charset_error='strict')
     #names_word_vect = TfidfVectorizer(preprocessor=preprocess_names, analyzer='word', min_df=1,
@@ -111,7 +107,7 @@ def vectorize_tweets(data_train):
     duration = time.time() - t0
     print("done in %fs" % (duration))
     print("n_samples: %d, n_features: %d" % X_train.shape)
-    print()
+    print ""
     return tweets_combined_features, X_train
 
 
@@ -122,7 +118,7 @@ def extract_test_features(data_test, vectorizer):
     duration = time.time() - t0
     print("done in %fs" % (duration))
     print("n_samples: %d, n_features: %d" % X_test.shape)
-    print()
+    print ""
 
 
 def load_users(db, users):
@@ -133,6 +129,7 @@ def load_users(db, users):
 
 
 def classify_users(clf, vectorizer, users, tweets):
+    print("Classifying all unclassified users")
     X_new = vectorizer.transform(tweets)
     predicted = clf.predict(X_new)
     for doc, category in zip(users, predicted):
@@ -140,6 +137,8 @@ def classify_users(clf, vectorizer, users, tweets):
 
 
 def naive_classify_unknown(X_train, y_train, vectorizer):
+    print('_' * 80)
+    print("Training a Naive Bayes classifier for initial classification")
     client = pymongo.MongoClient("localhost", 27017)
     db = client.tweets
     clf = MultinomialNB()
@@ -277,9 +276,6 @@ def main():
     X_test = extract_test_features(data_test, vectorizer)
     # Get extracted features
     feature_names = np.asarray(vectorizer.get_feature_names())
-    # Save all to file for later reuse
-    pickle.dump((
-        data_train, data_test, vectorizer, X_train, X_test, y_train, y_test, feature_names), open("alldata", "wb"))
     # Do a fast Naive Bayes classification of all the users in the db. Can be used as a benchmark compariseon
     naive_classify_unknown(X_train, y_train, vectorizer)
     #Do a set of tests on various classifiers
