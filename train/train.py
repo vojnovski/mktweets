@@ -27,21 +27,20 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neighbors import NearestCentroid
 from sklearn.utils.extmath import density
 
-
 def load_tweets():
     """Load and return the tweets from the DB
 
     """
-    print("Loading the data:")
+    print("Loading the data")
     client = pymongo.MongoClient("localhost", 27017)
     db = client.tweets
-    train_instances = 5
+    train_instances = 4
     n_samples = 7
     tweets_per_sample = 10000
     data = []
 
-    #Manually tagged the first 24 users
-    target = [1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0]
+    #Manually tagged the first 120 users
+    target = [1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1]
 
     for i, user in enumerate(db.tweets.distinct('user.screen_name')[:n_samples]):
         first_tweet = db.tweets.find({'user.screen_name': user})[:1][0]
@@ -55,18 +54,19 @@ def load_tweets():
         data.append(sample)
 
     labels = target[:n_samples]
-
+    
     data_train = data[:train_instances]
     data_test = data[train_instances:]
     y_train = labels[:train_instances]
     y_test = labels[train_instances:]
-
-    print("%d documents (training set)" % len(data_train))
-    print("%d documents (test set)" % len(data_test))
+    
+    print('Data loaded:')
+    
+    print("%d documents - (training set)" % (len(data_train)))
+    print("%d documents - (test set)" % (len(data_test)))
     print("2 categories: [Male, Female]")
-    print('Data loaded')
     print ""
-
+    
     return data_train, data_test, y_train, y_test
 
 
@@ -119,6 +119,7 @@ def extract_test_features(data_test, vectorizer):
     print("done in %fs" % (duration))
     print("n_samples: %d, n_features: %d" % X_test.shape)
     print ""
+    return X_test
 
 
 def load_users(db, users):
@@ -129,7 +130,6 @@ def load_users(db, users):
 
 
 def classify_users(clf, vectorizer, users, tweets):
-    print("Classifying all unclassified users")
     X_new = vectorizer.transform(tweets)
     predicted = clf.predict(X_new)
     for doc, category in zip(users, predicted):
@@ -137,8 +137,6 @@ def classify_users(clf, vectorizer, users, tweets):
 
 
 def naive_classify_unknown(X_train, y_train, vectorizer):
-    print('_' * 80)
-    print("Training a Naive Bayes classifier for initial classification")
     client = pymongo.MongoClient("localhost", 27017)
     db = client.tweets
     clf = MultinomialNB()
@@ -177,7 +175,7 @@ def benchmark(clf, X_train, X_test, y_train, y_test, feature_names):
             print("%s: %s" % ("Female", ", ".join(feature_names[top10female])))
             print("%s: %s" % ("Male", ", ".join(feature_names[top10male])))
 
-        print()
+        print ""
 
     print("classification report:")
     print(metrics.classification_report(y_test, pred,
@@ -185,7 +183,7 @@ def benchmark(clf, X_train, X_test, y_train, y_test, feature_names):
     print("confusion matrix:")
     print(metrics.confusion_matrix(y_test, pred))
 
-    print()
+    print ""
     clf_descr = str(clf).split('(')[0]
     return clf_descr, score, train_time, test_time
 
@@ -264,9 +262,7 @@ def show_plot(results):
     pl.show()
 
 
-def main():
-    start_time = time.time()
-    logging.basicConfig(level=logging.INFO, format='%(asctime)s %(levelname)s %(message)s')
+def train_test():
     #Load and save tweets to file
     data_train, data_test, y_train, y_test = load_tweets()
     pickle.dump((data_train, data_test, y_train, y_test), open("corpus", "wb"))
@@ -277,12 +273,16 @@ def main():
     # Get extracted features
     feature_names = np.asarray(vectorizer.get_feature_names())
     # Do a fast Naive Bayes classification of all the users in the db. Can be used as a benchmark compariseon
-    naive_classify_unknown(X_train, y_train, vectorizer)
+    #naive_classify_unknown(X_train, y_train, vectorizer)
     #Do a set of tests on various classifiers
     results = test_classifiers(X_train, X_test, y_train, y_test, feature_names)
     # Show comparison plot
     show_plot(results)
-
+    
+    
+def main():
+    start_time = time.time()
+    train_test()
     print "Time of Total execution: ", time.time() - start_time, "seconds"
 
 
