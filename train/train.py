@@ -10,7 +10,6 @@ Created on 27 Apr 2013
 import time
 import pickle
 import pymongo
-import logging
 import pylab as pl
 import numpy as np
 from sklearn.pipeline import FeatureUnion
@@ -27,6 +26,7 @@ from sklearn.neighbors import KNeighborsClassifier
 from sklearn.neighbors import NearestCentroid
 from sklearn.utils.extmath import density
 
+
 def load_tweets():
     """Load and return the tweets from the DB
 
@@ -40,7 +40,10 @@ def load_tweets():
     data = []
 
     #Manually tagged the first 120 users
-    target = [1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0, 0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1]
+    target = [1, 1, 1, 0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 1, 1, 0, 0, 0, 0, 0,
+              0, 0, 1, 0, 1, 0, 0, 0, 0, 1, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 1, 0, 0, 1, 0, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+              0, 0, 0, 1, 1, 0, 1, 1, 0, 0, 0, 1, 0, 1, 1, 1, 0, 0, 1, 0, 1, 1, 0, 0, 1, 1, 1, 0, 0, 0, 0, 0, 1, 1, 0,
+              1, 0, 1, 0, 0, 0, 0, 0, 1, 1, 0, 0, 1, 1, 1]
 
     for i, user in enumerate(db.tweets.distinct('user.screen_name')[:n_samples]):
         first_tweet = db.tweets.find({'user.screen_name': user})[:1][0]
@@ -54,19 +57,19 @@ def load_tweets():
         data.append(sample)
 
     labels = target[:n_samples]
-    
+
     data_train = data[:train_instances]
     data_test = data[train_instances:]
     y_train = labels[:train_instances]
     y_test = labels[train_instances:]
-    
+
     print('Data loaded:')
-    
+
     print("%d documents - (training set)" % (len(data_train)))
     print("%d documents - (test set)" % (len(data_test)))
     print("2 categories: [Male, Female]")
     print ""
-    
+
     return data_train, data_test, y_train, y_test
 
 
@@ -74,35 +77,40 @@ def vectorize_tweets(data_train):
     print("Extracting features from the training dataset using a sparse vectorizer")
     t0 = time.time()
     preprocess_tweets = lambda x: x[0]
-    #preprocess_screen_names = lambda x: x[1]
-    #preprocess_descriptions = lambda x: x[2]
-    #preprocess_names = lambda x: x[3]
+    preprocess_screen_names = lambda x: x[1]
+    preprocess_descriptions = lambda x: x[2]
+    preprocess_names = lambda x: x[3]
     tweets_char_vect = TfidfVectorizer(preprocessor=preprocess_tweets, analyzer='char',
                                        ngram_range=(1, 5), strip_accents=None, charset_error='strict',
                                        sublinear_tf=True, max_df=0.5)
     tweets_word_vect = TfidfVectorizer(preprocessor=preprocess_tweets, analyzer='word',
                                        ngram_range=(1, 2), strip_accents=None, charset_error='strict',
                                        sublinear_tf=True, max_df=0.5)
-    #names_char_vect = TfidfVectorizer(preprocessor=preprocess_names, analyzer='char',
-    #                                  ngram_range=(1, 5), strip_accents=None, charset_error='strict')
-    #names_word_vect = TfidfVectorizer(preprocessor=preprocess_names, analyzer='word', min_df=1,
-    #                                  ngram_range=(1, 1), strip_accents=None, charset_error='strict')
-    #descriptions_char_vect = TfidfVectorizer(preprocessor=preprocess_descriptions, analyzer='char',
-    #                                         ngram_range=(1, 5), strip_accents=None, charset_error='strict')
-    #descriptions_word_vect = TfidfVectorizer(preprocessor=preprocess_descriptions, analyzer='word',
-    #                                         ngram_range=(1, 2), strip_accents=None, charset_error='strict')
-    #screen_names_char_vect = TfidfVectorizer(preprocessor=preprocess_screen_names, analyzer='char',
-    #                                         ngram_range=(1, 5), strip_accents=None, charset_error='strict')
-    tweets_features = FeatureUnion([("tweets_char", tweets_char_vect), ("tweets_word", tweets_word_vect)])
+    names_char_vect = TfidfVectorizer(preprocessor=preprocess_names, analyzer='char',
+                                      ngram_range=(1, 5), strip_accents=None, charset_error='strict',
+                                      sublinear_tf=True, max_df=0.5)
+    names_word_vect = TfidfVectorizer(preprocessor=preprocess_names, analyzer='word', min_df=1,
+                                      ngram_range=(1, 1), strip_accents=None, charset_error='strict',
+                                      sublinear_tf=True, max_df=0.5)
+    descriptions_char_vect = TfidfVectorizer(preprocessor=preprocess_descriptions, analyzer='char',
+                                             ngram_range=(1, 5), strip_accents=None, charset_error='strict',
+                                             sublinear_tf=True, max_df=0.5)
+    descriptions_word_vect = TfidfVectorizer(preprocessor=preprocess_descriptions, analyzer='word',
+                                             ngram_range=(1, 2), strip_accents=None, charset_error='strict',
+                                             sublinear_tf=True, max_df=0.5)
+    screen_names_char_vect = TfidfVectorizer(preprocessor=preprocess_screen_names, analyzer='char',
+                                             ngram_range=(1, 5), strip_accents=None, charset_error='strict',
+                                             sublinear_tf=True, max_df=0.5)
+    #tweets_features = FeatureUnion([("tweets_char", tweets_char_vect), ("tweets_word", tweets_word_vect)])
     #names_features = FeatureUnion([("names_char", names_char_vect), ("names_word", names_word_vect)])
     #descriptions_features = FeatureUnion([("descriptions_char", descriptions_char_vect),
     #                                      ("descriptions_word", descriptions_word_vect)])
-    #tweets_all_features = FeatureUnion([("tweets_char", tweets_char_vect), ("tweets_word", tweets_word_vect),
-    #                                    ("names_char", names_char_vect), ("names_word", names_word_vect),
-    #                                    ("descriptions_char", descriptions_char_vect),
-    #                                    ("descriptions_word", descriptions_word_vect),
-    #                                    ("screen_names_char", screen_names_char_vect)])
-    tweets_combined_features = tweets_features
+    tweets_all_features = FeatureUnion([("tweets_char", tweets_char_vect), ("tweets_word", tweets_word_vect),
+                                        ("names_char", names_char_vect), ("names_word", names_word_vect),
+                                        ("descriptions_char", descriptions_char_vect),
+                                        ("descriptions_word", descriptions_word_vect),
+                                        ("screen_names_char", screen_names_char_vect)])
+    tweets_combined_features = tweets_all_features
     X_train = tweets_combined_features.fit_transform(data_train)
     duration = time.time() - t0
     print("done in %fs" % (duration))
@@ -278,8 +286,8 @@ def train_test():
     results = test_classifiers(X_train, X_test, y_train, y_test, feature_names)
     # Show comparison plot
     show_plot(results)
-    
-    
+
+
 def main():
     start_time = time.time()
     train_test()
