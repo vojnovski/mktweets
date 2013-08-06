@@ -24,13 +24,13 @@ def getStatusiRateLimited(korisnik, api, maxid=-1):
     while True:
         try:
             if maxid == -1:
-                statuses = api.GetUserTimeline(screen_name=korisnik, count=200, include_entities=True)
+                statuses = api.GetUserTimeline(screen_name=korisnik, count=200)
             else:
-                statuses = api.GetUserTimeline(screen_name=korisnik, count=200, max_id = maxid, include_entities=True)
+                statuses = api.GetUserTimeline(screen_name=korisnik, count=200, max_id = maxid)
             return statuses
         except twitter.TwitterError, e:
             print e.message
-            if not "Rate limit exceeded" in e.message:
+            if not "Rate limit exceeded" in e.message[0]['message']:
                 return []
             time_between_retries *= 2
             time.sleep(time_between_retries)
@@ -42,7 +42,7 @@ def getMinid(statusi):
 def langPercentage(statusi, language='mk'):
     n = 0
     for status in statusi:
-        if guess_language(unicode(status.text)) == language:            
+        if guess_language(unicode(status.text)) == language:
             n=n+1
     if len(statusi) == 0:
         return 0
@@ -63,7 +63,7 @@ def getSiteStatusi(korisnik, api, db, site=True):
     if langPercentage(statusi) < 0.1:
         return [], False
     if inDb(statusi,db):
-        return [], True            
+        return [], True
     print "Vkupno: " + str(len(statusi)) + " statusi od @" + korisnik + ": " + statusi[-1].text.encode('ascii', 'ignore')
     if not site:
         return statusi, True
@@ -82,11 +82,11 @@ def getFriendsRateLimited(korisnik, api):
     time_between_retries = 5
     while True:
         try:
-            friends = api.GetFriends(user=korisnik)
+            friends = api.GetFriends(screen_name=korisnik)
             return friends
         except twitter.TwitterError, e:
             print e.message
-            if not "Rate limit exceeded" in e.message:
+            if not "Rate limit exceeded" in e.message[0]['message']:
                 return []
             time_between_retries *= 2
             time.sleep(time_between_retries)
@@ -114,7 +114,7 @@ def svrti(korisnik, iteracija, db, api, tree):
 
 def test():
     api = prepareApi()
-    
+
 
 def prepareApi():
     try:
@@ -134,7 +134,7 @@ def main():
     db.tweets.ensure_index('id', unique = True, dropDups = True)
     svrti("vojnovski", 0, db, api, "vojnovski")
     print "Time of execution: ", time.time() - start_time, "seconds"
-    
-    
+
+
 if __name__ == '__main__':
     main()
