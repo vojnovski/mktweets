@@ -8,38 +8,43 @@ Created on 27 Apr 2013
 '''
 
 import time
-#import nltk
 import twitter
 #import pickle
 from guess_language import guess_language
-#import sys, codecs, locale
 import sys
 import pymongo
 import json
 import datetime
 import calendar
 
-broj_na_iteracii = 4
+BROJ_NA_ITERACII = 4
 projdeni = set([])
+user_ids = dict()
 
 
-def apiSleep(api, method):
-    limitStatus = api.GetRateLimitStatus()
+def api_sleep(api, method):
+    """ Spie odredeno vreme posle blokiracki povik.
+    """
+    try:
+        limit_status = api.GetRateLimitStatus()
+    except twitter.TwitterError:
+        return
     dtcode = datetime.datetime.utcnow()
     unixtime = calendar.timegm(dtcode.utctimetuple())
-    #print api.GetRateLimitStatus()
     if method == 'Timeline':
-        sleeptime = limitStatus[u'resources'][u'statuses'][u'/statuses/user_timeline'][u'reset'] - unixtime + 10
+        sleeptime = limit_status[u'resources'][u'statuses'][u'/statuses/user_timeline'][u'reset']
     elif method == 'User':
-        print limitStatus
-        sleeptime = limitStatus[u'resources'][u'users'][u'/users/show/:id'][u'reset'] - unixtime + 10
+        sleeptime = limit_status[u'resources'][u'users'][u'/users/show/:id'][u'reset']
     else:
-        sleeptime = limitStatus[u'resources'][u'friends'][u'/friends/list'][u'reset'] - unixtime + 10
+        sleeptime = limit_status[u'resources'][u'friends'][u'/friends/list'][u'reset']
+    sleeptime = sleeptime - unixtime + 10
     print 'Spijam ', sleeptime, 'sekundi'
     time.sleep(sleeptime)
 
 
-def getStatusiRateLimited(korisnik, api, maxid=-1):
+def get_statusi_ratelimited(korisnik, api, maxid=-1):
+    """ Zema 200 statusi na korisnikot pocnuvajkji od id-to koe greska specificirano.
+    """
     while True:
         try:
             if maxid == -1:
@@ -49,18 +54,16 @@ def getStatusiRateLimited(korisnik, api, maxid=-1):
                 statuses = api.GetUserTimeline(
                     screen_name=korisnik, count=200, max_id=maxid)
             return statuses
-        except twitter.TwitterError, e:
-            if "Not authorized" in e or not "Rate limit exceeded" in e.message[0]['message']:
-                print e
+        except twitter.TwitterError, greska:
+            if "Not authorized" in greska or not "Rate limit exceeded" in greska.message[0]['message']:
+                print greska
                 return []
-            apiSleep(api, 'Timeline')
+            api_sleep(api, 'Timeline')
 
 
-def getMinid(statusi):
-    return min([p.id for p in statusi])
-
-
-def langPercentage(statusi, language='mk'):
+def lang_percentage(statusi, language='mk'):
+    """ Vrakja procent na tvitovi koi se na odredeniot jazik.
+    """
     n = 0
     for status in statusi:
         if guess_language(unicode(status.text)) == language:
@@ -70,7 +73,7 @@ def langPercentage(statusi, language='mk'):
     return n / float(len(statusi))
 
 
-def inDb(statusi, db):
+def in_db(statusi, db):
     if statusi:
         if statusi[0]:
             if db.tweets.find({"id": statusi[0].id}).count() == 1:
@@ -78,52 +81,55 @@ def inDb(statusi, db):
     return False
 
 
-def getSiteStatusi(korisnik, api, db, site=True):
-    print "Go pocnuvam " + korisnik
-    statusi = getStatusiRateLimited(korisnik, api)
-    if langPercentage(statusi) < 0.1:
+def get_site_statusi(korisnik, api, db, site=True):
+    print "    Pocnuvam @" + korisnik
+    statusi = get_statusi_ratelimited(korisnik, api)
+    if lang_percentage(statusi) < 0.1:
         return [], False
-    if inDb(statusi, db):
+    if in_db(statusi, db):
         return [], True
-    print "Vkupno " + str(len(statusi)) + " statusi od @" + korisnik + ": " + statusi[-1].text.encode('ascii', 'ignore')
+    print "     Vkupno " + str(len(statusi)) + " statusi od @" + korisnik + ": " + \
+          statusi[-1].text.encode('ascii', 'ignore')
     if not site:
         return statusi, True
     while True:
-        newstatusi = getStatusiRateLimited(
-            korisnik, api, getMinid(statusi) - 1)
-        if inDb(newstatusi, db):
+        newstatusi = get_statusi_ratelimited(korisnik, api, min([p.id for p in statusi]) - 1)
+        if in_db(newstatusi, db):
             return statusi, True
         if newstatusi != []:
             statusi += newstatusi
-            print "Vkupno: " + str(len(statusi)) + "; Uste statusi od @" + korisnik + ": " + \
+            print "    Vkupno: " + str(len(statusi)) + "; Uste statusi od @" + korisnik + ": " + \
                   statusi[-1].text.encode('ascii', 'ignore')
         else:
             return statusi, True
 
 
-def getUserRateLimited(user_id, api):
+def get_user_ratelimited(user_id, api):
+    if user_id in user_ids:
+        return user_ids[user_id]
     while True:
         try:
             user = api.GetUser(user_id=user_id)
-            return user
-        except twitter.TwitterError, e:
-            if "Not authorized" in e or not "Rate limit exceeded" in e.message[0]['message']:
-                print e
-                return []
-            apiSleep(api, "User")
+            user_ids[user_id] = user.screen_name
+            return user.screen_name
+        except twitter.TwitterError, greska:
+            if "Not authorized" in greska or not "Rate limit exceeded" in greska.message[0]['message']:
+                print greska
+                return None
+            api_sleep(api, "User")
 
 
-def getFriendsRateLimited(korisnik, api):
+def get_friends_ratelimited(korisnik, api):
     print "Gi zemam prijatelite na " + korisnik
     while True:
         try:
             friends = api.GetFriendIDs(screen_name=korisnik)
             return friends
-        except twitter.TwitterError, e:
-            if "Not authorized" in e or not "Rate limit exceeded" in e.message[0]['message']:
-                print e
+        except twitter.TwitterError, greska:
+            if "Not authorized" in greska or not "Rate limit exceeded" in greska.message[0]['message']:
+                print greska
                 return []
-            apiSleep(api, "Friends")
+            api_sleep(api, "Friends")
 
 
 def snimi(statuses, db):
@@ -131,25 +137,26 @@ def snimi(statuses, db):
         try:
             db.tweets.save(json.loads(status.AsJsonString()), check_keys=False)
         except:
+            #bad hack, should do a typed catch, but it works for now
             return
 
 
 def svrti(korisnik, iteracija, db, api, tree):
     if korisnik not in projdeni:
-        statuses, mk = getSiteStatusi(korisnik, api, db, True)
+        statuses, lang_is_mk = get_site_statusi(korisnik, api, db, True)
         snimi(statuses, db)
         projdeni.add(korisnik)
-        if mk and not iteracija + 1 == broj_na_iteracii:
-            for friend_id in getFriendsRateLimited(korisnik, api):
-                    friend = getUserRateLimited(friend_id, api)
-                    print "Nivo " + str(iteracija) + ": " + tree + "->" + friend.screen_name
-                    svrti(friend.screen_name, iteracija + 1, db,
-                          api, tree + "->" + friend.screen_name)
+        if lang_is_mk and not iteracija + 1 == BROJ_NA_ITERACII:
+            for friend_id in get_friends_ratelimited(korisnik, api):
+                friend_name = get_user_ratelimited(friend_id, api)
+                if friend_name is not None:
+                    print "Nivo " + str(iteracija) + ": " + tree + "->" + friend_name
+                    svrti(friend_name, iteracija + 1, db, api, tree + "->" + friend_name)
     else:
-        print "Vekje projden: " + korisnik
+        print "    Vekje projden: @" + korisnik
 
 
-def prepareApi():
+def prepare_api():
     try:
         fajl = open("twitterkey")
     except IOError:
@@ -162,12 +169,12 @@ def prepareApi():
 
 def main():
     start_time = time.time()
-    api = prepareApi()
+    api = prepare_api()
     client = pymongo.MongoClient("localhost", 27017)
     db = client.tweets
     db.tweets.ensure_index('id', unique=True, dropDups=True)
     svrti("vojnovski", 0, db, api, "vojnovski")
-    print "Time of execution: ", time.time() - start_time, "seconds"
+    print "Vreme na izvrsuvanje: ", time.time() - start_time, "sekundi"
 
 
 if __name__ == '__main__':

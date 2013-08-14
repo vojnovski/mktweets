@@ -35,7 +35,8 @@ def load_tweets():
     client = pymongo.MongoClient("localhost", 27017)
     db = client.tweets
     train_instances = 4
-    n_samples = 7
+    test_instances = 3
+    n_samples = train_instances + test_instances
     tweets_per_sample = 10000
     data = []
 
