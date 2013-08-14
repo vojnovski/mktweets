@@ -42,3 +42,4 @@ data
 .ropeproject
 alldata
 corpus
+crawl.log
